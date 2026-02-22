@@ -55,7 +55,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ─── API KEY ───────────────────────────────────────────────────────────────────
-API_KEY = "AIzaSyA4C1ph4M4MdnXUcLSzDfPEg1Q_9pUyhCk"
+API_KEY = "AIzaSyBQQ3KYgqlW20xdyQxMRyxEsx6YF1-mVqo"
 genai.configure(api_key=API_KEY)
 
 # ─── EXTRACTION PROMPT ─────────────────────────────────────────────────────────
@@ -356,7 +356,7 @@ with col2:
                     all_images.append(img)
 
                 # Send to Gemini
-                model = genai.GenerativeModel("gemini-1.5-pro-latest")
+                model = genai.GenerativeModel("gemini-1.5-flash")
 
                 content = [EXTRACT_PROMPT]
                 content.append(f"\n\nEXTRACTED TEXT FROM PDF:\n{all_text}\n\nNow analyze the images:")
