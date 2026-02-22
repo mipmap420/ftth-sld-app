@@ -55,7 +55,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ─── API KEY ───────────────────────────────────────────────────────────────────
-API_KEY = "AIzaSyBclJEpXRWkU6Qq6inU-bgh5M7bk1UHHZI"
+API_KEY = "AIzaSyA4C1ph4M4MdnXUcLSzDfPEg1Q_9pUyhCk"
 genai.configure(api_key=API_KEY)
 
 # ─── EXTRACTION PROMPT ─────────────────────────────────────────────────────────
