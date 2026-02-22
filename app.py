@@ -270,17 +270,6 @@ def generate_sld(data):
                     ha='center', va='top', fontsize=4.5, color='#555')
 
     # ── Legend ──────────────────────────────────────────────────────────────────
-    legend_x, legend_y = 0.75, 0.06
-    legend_items = [
-        (Circle((0,0), 0.1, color='#27ae60'), 'LCP (1:8)'),
-        (Circle((0,0), 0.1, color='#c0392b'), 'NAP (1:8)'),
-    ]
-    ax.text(legend_x, legend_y + 0.04, 'LEGEND:', transform=ax.transAxes,
-            fontsize=8, fontweight='bold')
-    for i, (patch, label) in enumerate(legend_items):
-        ax.add_patch(mpatches.Patch(color=patch.get_facecolor(),
-                                     label=label))
-
     handles = [
         mpatches.Patch(color='#27ae60', label='LCP (1:8)'),
         mpatches.Patch(color='#c0392b', label='NAP (1:8)'),
