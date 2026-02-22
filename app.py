@@ -1,6 +1,7 @@
 import streamlit as st
 import fitz  # PyMuPDF
 import google.generativeai as genai
+from google.generativeai import GenerativeModel
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.patches import FancyBboxPatch, Circle
@@ -355,8 +356,15 @@ with col2:
                     img = PIL.Image.open(io.BytesIO(img_bytes_page))
                     all_images.append(img)
 
-                # Send to Gemini
-                model = genai.GenerativeModel("models/gemini-1.5-flash")
+                # Auto-detect available model
+                available = [m.name for m in genai.list_models() 
+                             if 'generateContent' in m.supported_generation_methods]
+                # Pick best available flash model
+                model_name = next((m for m in available if 'flash' in m), 
+                             next((m for m in available if 'pro' in m and 'vision' in m),
+                             available[0] if available else "gemini-pro-vision"))
+                st.info(f"Using model: {model_name}")
+                model = genai.GenerativeModel(model_name)
 
                 content = [EXTRACT_PROMPT]
                 content.append(f"\n\nEXTRACTED TEXT FROM PDF:\n{all_text}\n\nNow analyze the images:")
