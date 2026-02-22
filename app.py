@@ -356,7 +356,7 @@ with col2:
                     all_images.append(img)
 
                 # Send to Gemini
-                model = genai.GenerativeModel("gemini-1.5-flash")
+                model = genai.GenerativeModel("models/gemini-1.5-flash")
 
                 content = [EXTRACT_PROMPT]
                 content.append(f"\n\nEXTRACTED TEXT FROM PDF:\n{all_text}\n\nNow analyze the images:")
