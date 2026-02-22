@@ -3,55 +3,53 @@ import fitz  # PyMuPDF
 import google.generativeai as genai
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from matplotlib.patches import FancyBboxPatch, Circle
+from matplotlib.patches import Circle
 import json
 import io
-import PIL.Image
 import re
 
 # ─── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="FTTH AS-BUILT → SLD Generator",
+    page_title="FTTH SLD Generator Pro",
     page_icon="📡",
     layout="wide"
 )
 
-# ─── API KEY (Replace with your own if needed) ─────────────────────────────────
+# ─── API KEY ───────────────────────────────────────────────────────────────────
 API_KEY = "AIzaSyBQQ3KYgqlW20xdyQxMRyxEsx6YF1-mVqo"
 genai.configure(api_key=API_KEY)
 
 # ─── EXTRACTION PROMPT ─────────────────────────────────────────────────────────
 EXTRACT_PROMPT = """
-You are a Senior FTTH Network Design Engineer. Analyze the provided AS-BUILT plan data.
+You are an expert FTTH Network Auditor. Analyze the provided text coordinates from an AS-BUILT plan.
 
 ### OBJECTIVE:
-Extract the OLT headend, LCP nodes, and their associated NAP nodes into a JSON structure.
+Extract the OLT (Headend) details, LCP nodes, and their connected NAP nodes into a clean JSON structure.
 
-### STRICT MAPPING RULES:
-1. COORDINATES: The input text includes (x,y) coordinates. Use these to determine which labels belong together.
-2. HIERARCHY: NAPs (e.g., ALMLP157NP1) MUST be placed inside the 'naps' list of their parent LCP (e.g., ALMLP157).
-3. SPANS: Distances like "83m" or "30m" are spans. Assign them to the node they are physically closest to.
-4. CO-LOCATORS: Identify if the pole/node is SMART, NPT, or DIGITEL.
+### ACCURACY RULES:
+1. GROUPING: NAPs (e.g., ALMLP157NP1) MUST be placed inside the 'naps' list of the correct LCP (ALMLP157). 
+2. SPANS: Distances like "83m" or "30m" are crucial. Link them to the node closest to them.
+3. CO-LOCATORS: Identify if the pole/node is SMART, NPT, or DIGITEL.
 
-Return ONLY this JSON structure:
+Return ONLY JSON:
 {
-  "project_name": "Name from title block",
-  "lat": "LAT from plan",
-  "long": "LONG from plan",
-  "feeder_cable": "e.g., 72F",
-  "feeder_length": "e.g., 1100m",
+  "project_name": "Project Name",
+  "lat": "LAT",
+  "long": "LONG",
+  "feeder_cable": "e.g. 72F",
+  "feeder_length": "e.g. 1100m",
   "lcps": [
     {
       "id": "LCP_ID",
-      "span_from_prev": "distance",
+      "span_from_prev": "XXm",
       "fibers_used": "fiber range",
       "co_locator": "SMART/NPT/DIGITEL",
       "landmark": "Address",
       "naps": [
         {
           "id": "NAP_ID",
-          "span": "distance",
-          "fibers_used": "fiber range",
+          "span": "XXm",
+          "fibers_used": "FX-FX",
           "co_locator": "SMART",
           "landmark": "Address"
         }
@@ -62,93 +60,79 @@ Return ONLY this JSON structure:
 """
 
 # ─── SLD DRAWING FUNCTIONS ──────────────────────────────────────────────────────
-def draw_lcp_symbol(ax, x, y, size=0.35):
-    circle = Circle((x, y), size, color='#27ae60', zorder=5)
-    ax.add_patch(circle)
-    ax.text(x, y, 'L|8', ha='center', va='center', fontsize=7, color='white', fontweight='bold')
-
-def draw_nap_symbol(ax, x, y, size=0.3):
-    circle = Circle((x, y), size, color='#c0392b', zorder=5)
-    ax.add_patch(circle)
-    ax.text(x, y, 'N|8', ha='center', va='center', fontsize=6, color='white', fontweight='bold')
-
 def generate_sld(data):
     lcps = data.get('lcps', [])
     if not lcps: return None
 
-    fig, ax = plt.subplots(figsize=(20, len(lcps) * 4))
-    ax.set_facecolor('white')
+    fig, ax = plt.subplots(figsize=(22, len(lcps) * 4.5))
+    ax.set_facecolor('#ffffff')
     ax.axis('off')
 
-    # Header Info
-    ax.text(1, 12, f"PROJECT: {data.get('project_name', 'N/A')}", fontsize=14, fontweight='bold')
-    ax.text(1, 11.5, f"LAT: {data.get('lat')} | LONG: {data.get('long')}", fontsize=10)
-    ax.text(1, 11, f"FEEDER: {data.get('feeder_cable')} - {data.get('feeder_length')}", fontsize=10)
+    plt.text(0.5, 1, f"PROJECT: {data.get('project_name', 'UNKNOWN').upper()}", transform=ax.transAxes, fontsize=16, fontweight='bold', ha='center')
+    plt.text(0.5, 0.97, f"LAT: {data.get('lat')} | LONG: {data.get('long')} | FEEDER: {data.get('feeder_cable')} ({data.get('feeder_length')})", transform=ax.transAxes, fontsize=11, ha='center')
 
-    curr_y = 9
+    curr_y = 10
     for lcp in lcps:
-        # Draw LCP
-        draw_lcp_symbol(ax, 2, curr_y)
-        ax.text(2, curr_y + 0.5, lcp['id'], fontweight='bold', ha='center', fontsize=9)
-        ax.text(2, curr_y - 0.7, f"{lcp.get('co_locator')}\n{lcp.get('landmark')[:25]}", fontsize=7, ha='center')
-        
-        # Draw NAPs
+        lcp_x = 2
+        circle = Circle((lcp_x, curr_y), 0.4, color='#27ae60', zorder=5)
+        ax.add_patch(circle)
+        ax.text(lcp_x, curr_y, 'L|8', ha='center', va='center', color='white', fontweight='bold', fontsize=9)
+        ax.text(lcp_x, curr_y + 0.6, lcp['id'], fontweight='bold', ha='center', fontsize=10)
+        ax.text(lcp_x, curr_y - 0.8, f"{lcp.get('co_locator')}\n{lcp.get('landmark')[:30]}", fontsize=8, ha='center', color='#555')
+
         naps = lcp.get('naps', [])
         for i, nap in enumerate(naps):
-            nap_x = 5 + (i * 2.5)
-            # Connection line
-            prev_x = 2 if i == 0 else 5 + ((i-1) * 2.5)
-            ax.plot([prev_x + 0.4, nap_x - 0.4], [curr_y, curr_y], 'k-', lw=1, alpha=0.6)
+            nap_x = 6 + (i * 3.5)
+            prev_x = lcp_x if i == 0 else 6 + ((i-1) * 3.5)
+            ax.plot([prev_x + 0.4, nap_x - 0.4], [curr_y, curr_y], color='#34495e', lw=1.5)
             
-            draw_nap_symbol(ax, nap_x, curr_y)
-            ax.text(nap_x, curr_y + 0.4, nap['id'], color='#c0392b', fontsize=7, ha='center', fontweight='bold')
-            ax.text(nap_x, curr_y - 0.5, f"{nap.get('span')}\n{nap.get('fibers_used')}", fontsize=6, ha='center')
-
-        curr_y -= 4 # Next row
+            nap_circle = Circle((nap_x, curr_y), 0.35, color='#c0392b', zorder=5)
+            ax.add_patch(nap_circle)
+            ax.text(nap_x, curr_y, 'N|8', ha='center', va='center', color='white', fontweight='bold', fontsize=8)
+            ax.text(nap_x, curr_y + 0.5, nap['id'], color='#c0392b', fontsize=8, ha='center', fontweight='bold')
+            ax.text(nap_x, curr_y - 0.7, f"SPAN: {nap.get('span')}\n{nap.get('fibers_used')}", fontsize=7, ha='center')
+        curr_y -= 5
 
     plt.tight_layout()
     return fig
 
-# ─── MAIN UI ───────────────────────────────────────────────────────────────────
-st.title("📡 FTTH AS-BUILT to SLD Generator")
-st.write("Upload your PDF and I will generate the Single Line Diagram automatically.")
-
-uploaded_file = st.file_uploader("Upload PDF", type="pdf")
+# ─── MAIN APP INTERFACE ────────────────────────────────────────────────────────
+st.title("📡 FTTH SLD Generator (v2.1)")
+uploaded_file = st.file_uploader("Upload PDF Plan", type="pdf")
 
 if uploaded_file:
-    # 1. Extract text with coordinates
-    pdf_bytes = uploaded_file.read()
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    
+    doc = fitz.open(stream=uploaded_file.read(), filetype="pdf")
     coord_text = ""
     for page in doc:
         words = page.get_text("words") 
         for w in words:
-            # Format: (x, y) Text
             coord_text += f"({round(w[0])},{round(w[1])}){w[4]} "
         coord_text += "\n"
 
-    if st.button("🚀 Generate SLD Now"):
-        with st.spinner("AI is analyzing network topology..."):
+    if st.button("🚀 Generate Diagram"):
+        with st.spinner("AI is finding a compatible model and analyzing layout..."):
             try:
-                model = genai.GenerativeModel("gemini-1.5-flash")
-                response = model.generate_content([EXTRACT_PROMPT, "COORDINATE DATA: " + coord_text])
+                # FIX: Automatically find the best available model
+                available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+                target_model = next((m for m in available_models if 'gemini-1.5-flash' in m), 
+                               available_models[0] if available_models else None)
                 
-                # Extract JSON from response
-                json_str = re.search(r'\{.*\}', response.text, re.DOTALL).group()
-                data = json.loads(json_str)
-
-                st.success("Analysis Complete!")
-                
-                # Show Diagram
-                fig = generate_sld(data)
-                if fig:
-                    st.pyplot(fig)
-                
-                with st.expander("View Raw Data"):
-                    st.json(data)
+                if not target_model:
+                    st.error("No compatible AI models found in your project.")
+                else:
+                    model = genai.GenerativeModel(target_model)
+                    response = model.generate_content([EXTRACT_PROMPT, "DATA: " + coord_text])
                     
+                    json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+                    if json_match:
+                        data = json.loads(json_match.group())
+                        st.success(f"Successfully used model: {target_model}")
+                        fig = generate_sld(data)
+                        if fig:
+                            st.pyplot(fig)
+                    else:
+                        st.error("AI output was not valid JSON.")
+                        st.text(response.text)
+            
             except Exception as e:
                 st.error(f"Error: {e}")
-                st.write("Raw AI Response for troubleshooting:")
-                st.write(response.text)
